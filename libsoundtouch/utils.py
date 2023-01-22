@@ -90,6 +90,10 @@ class SoundtouchDeviceListener:
         """Remove listener."""
         _LOGGER.info("Service %s removed", name)
 
+    def update_service(self, zeroconf, device_type, name):
+        # pylint: disable=unused-argument
+        """Update listener.  UNUSED."""
+
     def add_service(self, zeroconf, device_type, name):
         """Add device.
 
