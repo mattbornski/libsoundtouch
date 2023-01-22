@@ -18,6 +18,7 @@ except ImportError:
 
 from xml.dom import minidom
 from requests.models import Response
+import socket
 import zeroconf
 
 
@@ -447,8 +448,12 @@ def _mocked_service_browser(zc, search, listener):
     assert isinstance(zc, zeroconf.Zeroconf)
     assert search == "_soundtouch._tcp.local."
     mock_zeroconf = mock.MagicMock()
-    service_info = mock.MagicMock()
-    service_info.port = 8090
+    service_info = zeroconf.ServiceInfo(
+        type_="_soundtouch._tcp.local.",
+        name="1111MASTER.local.",
+        port=8090,
+        parsed_addresses=["192.168.1.1"]
+    )
     mock_zeroconf.get_service_info.return_value = service_info
     listener.add_service(mock_zeroconf, '', 'device.tcp')
 
@@ -1132,7 +1137,7 @@ class TestLibSoundTouch(unittest.TestCase):
             codecs_open.close()
 
     @mock.patch('requests.get', side_effect=_mocked_device_info)
-    @mock.patch('socket.inet_ntoa', return_value='192.168.1.1')
+    @mock.patch('socket.inet_ntoa', wraps=socket.inet_ntoa)
     @mock.patch('zeroconf.ServiceBrowser.__init__', return_value=None,
                 side_effect=_mocked_service_browser)
     def test_discover_devices(self, mocked_service_browser, mocked_inet_ntoa,
