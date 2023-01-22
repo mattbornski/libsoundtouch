@@ -75,7 +75,7 @@ class Type(Enum):
     PLAYLIST = "playlist"
 
 
-class SoundtouchDeviceListener(object):
+class SoundtouchDeviceListener:
     """Message listener."""
 
     def __init__(self, add_device_function):
@@ -86,7 +86,7 @@ class SoundtouchDeviceListener(object):
         self.add_device_function = add_device_function
 
     def remove_service(self, zeroconf, device_type, name):
-        # pylint: disable=unused-argument,no-self-use
+        # pylint: disable=unused-argument
         """Remove listener."""
         _LOGGER.info("Service %s removed", name)
 

@@ -468,11 +468,19 @@ def _mocked_select_aux(*args, **kwargs):
 
 
 def _mocked_select_content_item(*args, **kwargs):
-    if args[0] != "http://192.168.1.1:8090/select" or args[1] not in [
-        '<ContentItem location="spotify:artist:2ye2Wgw4gimLv2eAKyk1NB" '
-        'source="SPOTIFY" '
-        'sourceAccount="spotify_account" type="uri" />'
-    ]:
+    if args[0] == "http://192.168.1.1:8090/select":
+        return
+    dom = minidom.parseString(args[1])
+    content_item = dom.getElementsByTagName("ContentItem")
+    if content_item["location"] != "spotify:artist:2ye2Wgw4gimLv2eAKyk1NB":
+        raise Exception("Unknown call")
+    if content_item["source"] != "SPOTIFY":
+        raise Exception("Unknown call")
+    if content_item["sourceAccount"] != "spotify_account":
+        raise Exception("Unknown call")
+    if content_item["type"] != "uri":
+        raise Exception("Unknown call")
+    if len(content_item.attributes) != 4:
         raise Exception("Unknown call")
 
 
