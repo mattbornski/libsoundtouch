@@ -6,7 +6,7 @@
 import logging
 import os
 import re
-import xml.etree.cElementTree as ET
+import xml.etree.ElementTree as ET
 from xml.dom import minidom
 from threading import Thread
 
@@ -17,6 +17,8 @@ from libsoundtouch.utils import Source
 from .utils import Key, Type
 
 STATE_STANDBY = 'STANDBY'
+
+TIMEOUT = 10
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,8 +36,7 @@ def _get_dom_element_attribute(xml_dom, element, attribute,
         if attribute in element.attributes.keys():
             return element.attributes[attribute].value
         return None
-    else:
-        return default_value
+    return default_value
 
 
 def _get_dom_elements(xml_dom, element):
@@ -133,8 +134,8 @@ class SoundTouchDevice:
         self._snapshot = None
 
     def __init_config(self):
-        response = requests.get(
-            "http://" + self._host + ":" + str(self._port) + "/info")
+        response = requests.get(f"http://{self._host}:{self._port}/info",
+                                timeout=TIMEOUT)
         response.encoding = 'UTF-8'
         dom = minidom.parseString(response.text.encode('utf-8'))
         self._config = Config(dom)
@@ -142,7 +143,7 @@ class SoundTouchDevice:
     def start_notification(self):
         """Start Websocket connection."""
         self._ws_client = websocket.WebSocketApp(
-            "ws://{0}:{1}/".format(self._host, self._ws_port),
+            f"ws://{self._host}:{self._ws_port}/",
             on_message=self._on_message,
             subprotocols=['gabbo'])
         ws_thread = WebSocketThread(self._ws_client)
@@ -240,23 +241,24 @@ class SoundTouchDevice:
 
     def refresh_status(self):
         """Refresh status state."""
-        response = requests.get(
-            "http://" + self._host + ":" + str(self._port) + "/now_playing")
+        response = requests.get((
+            f"http://{self._host}:{self._port}/now_playing"
+        ), timeout=TIMEOUT)
         response.encoding = 'UTF-8'
         dom = minidom.parseString(response.text.encode('utf-8'))
         self._status = Status(dom)
 
     def refresh_volume(self):
         """Refresh volume state."""
-        response = requests.get(
-            "http://" + self._host + ":" + str(self._port) + "/volume")
+        response = requests.get(f"http://{self._host}:{self._port}/volume",
+                                timeout=TIMEOUT)
         dom = minidom.parseString(response.text)
         self._volume = Volume(dom)
 
     def refresh_presets(self):
         """Refresh presets."""
-        response = requests.get(
-            "http://" + self._host + ":" + str(self._port) + "/presets")
+        response = requests.get(f"http://{self._host}:{self._port}/presets",
+                                timeout=TIMEOUT)
         response.encoding = 'UTF-8'
         dom = minidom.parseString(response.text.encode('utf-8'))
         self._presets = []
@@ -265,8 +267,8 @@ class SoundTouchDevice:
 
     def refresh_zone_status(self):
         """Refresh Zone Status."""
-        response = requests.get(
-            "http://" + self._host + ":" + str(self._port) + "/getZone")
+        response = requests.get(f"http://{self._host}:{self._port}/getZone",
+                                timeout=TIMEOUT)
         dom = minidom.parseString(response.text)
         if _get_dom_elements(dom, "member"):
             self._zone_status = ZoneStatus(dom)
@@ -278,9 +280,9 @@ class SoundTouchDevice:
 
         :param preset Selected preset.
         """
-        requests.post(
-            'http://' + self._host + ":" + str(self._port) + '/select',
-            preset.source_xml.encode('utf-8'))
+        requests.post(f"http://{self._host}:{self._port}/select",
+                      preset.source_xml.encode('utf-8'),
+                      timeout=TIMEOUT)
 
     def select_content_item(self, source, source_account=None, location=None,
                             media_type=None):
@@ -301,9 +303,8 @@ class SoundTouchDevice:
         root = ET.Element("ContentItem", attributes)
 
         content = ET.tostring(root).decode("UTF-8")
-        requests.post(
-            'http://' + self._host + ":" + str(self._port) + '/select',
-            content)
+        requests.post(f'http://{self._host}:{self._port}/select',
+                      content, timeout=TIMEOUT)
 
     def select_source_aux(self):
         """Select AUX source."""
@@ -316,22 +317,27 @@ class SoundTouchDevice:
     def _create_zone(self, slaves):
         if len(slaves) <= 0:
             raise NoSlavesException()
-        request_body = '<zone master="%s" senderIPAddress="%s">' % (
-            self.config.device_id, self.config.device_ip
+        request_body = (
+            f'<zone master="{self.config.device_id}" '
+            f'senderIPAddress="{self.config.device_ip}">'
         )
         for slave in slaves:
-            request_body += '<member ipaddress="%s">%s</member>' % (
-                slave.config.device_ip, slave.config.device_id)
+            request_body += (
+                f'<member ipaddress="{slave.config.device_ip}">'
+                f'{slave.config.device_id}</member>'
+            )
         request_body += '</zone>'
         return request_body
 
     def _get_zone_request_body(self, slaves):
         if len(slaves) <= 0:
             raise NoSlavesException()
-        request_body = '<zone master="%s">' % self.config.device_id
+        request_body = f'<zone master="{self.config.device_id}">'
         for slave in slaves:
-            request_body += '<member ipaddress="%s">%s</member>' % (
-                slave.config.device_ip, slave.config.device_id)
+            request_body += (
+                f'<member ipaddress="{slave.config.device_ip}">'
+                f'{slave.config.device_id}</member>'
+            )
         request_body += '</zone>'
         return request_body
 
@@ -344,9 +350,8 @@ class SoundTouchDevice:
         request_body = self._create_zone(slaves)
         _LOGGER.info("Creating multi-room zone with master device %s",
                      self.config.name)
-        requests.post("http://" + self.host + ":" + str(
-            self.port) + "/setZone",
-                      request_body)
+        requests.post(f"http://{self.host}:{self.port}/setZone",
+                      request_body, timeout=TIMEOUT)
 
     def add_zone_slave(self, slaves):
         """
@@ -361,10 +366,8 @@ class SoundTouchDevice:
         request_body = self._get_zone_request_body(slaves)
         _LOGGER.info("Adding slaves to multi-room zone with master device %s",
                      self.config.name)
-        requests.post(
-            "http://" + self.host + ":" + str(
-                self.port) + "/addZoneSlave",
-            request_body)
+        requests.post(f"http://{self.host}:{self.port}/addZoneSlave",
+                      request_body, timeout=TIMEOUT)
 
     def remove_zone_slave(self, slaves):
         """
@@ -380,20 +383,20 @@ class SoundTouchDevice:
         if self.zone_status() is None:
             raise NoExistingZoneException()
         request_body = self._get_zone_request_body(slaves)
-        _LOGGER.info("Removing slaves from multi-room zone with master " +
-                     "device %s", self.config.name)
-        requests.post(
-            "http://" + self.host + ":" + str(
-                self.port) + "/removeZoneSlave", request_body)
+        _LOGGER.info((
+            "Removing slaves from multi-room zone with master device %s",
+        ), self.config.name)
+        requests.post(f"http://{self.host}:{self.port}/removeZoneSlave",
+                      request_body, timeout=TIMEOUT)
 
     def _send_key(self, key):
         action = '/key'
-        press = '<key state="press" sender="Gabbo">%s</key>' % key
-        release = '<key state="release" sender="Gabbo">%s</key>' % key
-        requests.post('http://' + self._host + ":" +
-                      str(self._port) + action, press)
-        requests.post('http://' + self._host + ":" +
-                      str(self._port) + action, release)
+        press = f'<key state="press" sender="Gabbo">{key}</key>'
+        release = f'<key state="release" sender="Gabbo">{key}</key>'
+        requests.post(f'http://{self._host}:{self._port}{action}',
+                      press, timeout=TIMEOUT)
+        requests.post(f'http://{self._host}:{self._port}{action}',
+                      release, timeout=TIMEOUT)
 
     def play_media(self, source, location, source_acc=None,
                    media_type=Type.URI):
@@ -412,13 +415,15 @@ class SoundTouchDevice:
             device.status().content_item.type
         """
         action = "/select"
-        play = '<ContentItem source="%s" type="%s" sourceAccount="%s" ' \
-               'location="%s"><itemName>Select using API</itemName>' \
-               '</ContentItem>' % (
-                   source.value, media_type.value,
-                   source_acc if source_acc else '', location)
-        requests.post('http://' + self._host + ":" +
-                      str(self._port) + action, play)
+        play = (
+            f'<ContentItem source="{source.value}" '
+            f'type="{media_type.value}" '
+            f'sourceAccount="{source_acc if source_acc else ""}" '
+            f'location="{location}">'
+            f'<itemName>Select using API</itemName></ContentItem>'
+        )
+        requests.post(f'http://{self.host}:{self._port}{action}',
+                      play, timeout=TIMEOUT)
 
     def play_url(self, url):
         """
@@ -436,17 +441,16 @@ class SoundTouchDevice:
             "User-Agent": "libsoundtouch",
             "Accept": "*/*",
             "Content-Type": "text/xml; charset=\"utf-8\"",
-            "HOST": "{0}:{1}".format(self.host, self.dlna_port),
+            "HOST": f"{self.host}:{self.dlna_port}",
             "SOAPACTION": action
         }
         template_file = os.path.join(os.path.dirname(__file__),
                                      'templates/avt_transport_uri.xml')
-        with open(template_file, 'r') as template:
+        with open(template_file, 'r', encoding='utf8') as template:
             body = template.read().format(url)
             requests.post(
-                "http://{0}:{1}/AVTransport/Control".format(self.host,
-                                                            self.dlna_port),
-                data=body, headers=headers)
+                f"http://{self.host}:{self.dlna_port}/AVTransport/Control",
+                data=body, headers=headers, timeout=TIMEOUT)
 
     @property
     def host(self):
@@ -512,9 +516,9 @@ class SoundTouchDevice:
     def set_volume(self, level):
         """Set volume level: from 0 to 100."""
         action = '/volume'
-        volume = '<volume>%s</volume>' % level
-        requests.post('http://' + self._host + ":" + str(self._port) + action,
-                      volume)
+        volume = f'<volume>{level}</volume>'
+        requests.post(f'http://{self._host}:{self._port}{action}',
+                      volume, timeout=TIMEOUT)
 
     def mute(self):
         """Mute/Un-mute volume."""
@@ -1107,30 +1111,14 @@ class ZoneSlave:
 class SoundtouchException(Exception):
     """Parent Soundtouch Exception."""
 
-    def __init__(self):
-        """Soundtouch Exception."""
-        super(SoundtouchException, self).__init__()
-
 
 class NoExistingZoneException(SoundtouchException):
     """Exception while trying to add slave(s) without existing zone."""
-
-    def __init__(self):
-        """NoExistingZoneException."""
-        super(NoExistingZoneException, self).__init__()
 
 
 class NoSlavesException(SoundtouchException):
     """Exception while managing multi-room actions without valid slaves."""
 
-    def __init__(self):
-        """NoSlavesException."""
-        super(NoSlavesException, self).__init__()
-
 
 class SoundtouchInvalidUrlException(SoundtouchException):
     """Exception while trying to play an invalid URL."""
-
-    def __init__(self):
-        """SoundtouchInvalidUrlException."""
-        super(SoundtouchInvalidUrlException, self).__init__()

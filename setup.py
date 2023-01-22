@@ -14,7 +14,7 @@ def gen_data_files(*dirs):
     return results
 
 REQUIRES = [
-    'requests>=2,<3',
+    'requests>=2.27,<2.28',
     'enum-compat>=0.0.2',
     'websocket-client>=0.40.0',
     'zeroconf>=0.19.1'
@@ -24,10 +24,12 @@ PROJECT_CLASSIFIERS = [
     'Intended Audience :: Developers',
     'License :: OSI Approved :: Apache Software License',
     'Operating System :: OS Independent',
+    'Programming Language :: Python :: 3.11',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.8',
+    'Programming Language :: Python :: 3.7',
     'Programming Language :: Python :: 3.6',
-    'Programming Language :: Python :: 3.5',
-    'Programming Language :: Python :: 3.4',
-    'Programming Language :: Python :: 2.7',
     'Topic :: Software Development :: Libraries'
 ]
 
